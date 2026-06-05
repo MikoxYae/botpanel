@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Users</h1>
+    <p class="page-sub">{{ users|length }} users found</p>
+  </div>
+  <a href="{{ url_for('add_user') }}" class="btn btn-primary">+ Add User</a>
+</div>
+
+<!-- Filters -->
+<div class="filter-bar">
+  <form method="GET" action="{{ url_for('users') }}" class="filter-form">
+    <input type="text" name="q" placeholder="🔍 Search name / Telegram ID..." value="{{ search }}" class="search-input" />
+    <select name="bot" class="select-sm">
+      <option value="">All Bots</option>
+      {% for bot in all_bots %}
+      <option value="{{ bot }}" {% if bot == bot_filter %}selected{% endif %}>{{ bot }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-outline">Filter</button>
+    {% if search or bot_filter %}
+    <a href="{{ url_for('users') }}" class="btn btn-ghost">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>User</th>
+        <th>Telegram ID</th>
+        <th>Bot</th>
+        <th>Plan</th>
+        <th>Amount</th>
+        <th>This Month</th>
+        <th>Joined</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for user in users %}
+      <tr>
+        <td class="muted">{{ loop.index }}</td>
+        <td>
+          <div class="user-cell">
+            <div class="avatar" style="--hue:{{ (loop.index * 55 + 200) % 360 }}deg">{{ user.name[0] }}</div>
+            <div>
+              <div class="user-name">{{ user.name }}</div>
+              {% if user.notes %}<div class="muted text-xs">{{ user.notes[:40] }}</div>{% endif %}
+            </div>
+          </div>
+        </td>
+        <td><code class="tg-id">{{ user.telegram_id }}</code></td>
+        <td class="accent">{{ user.bot_name }}</td>
+        <td>{{ user.plan }}</td>
+        <td class="fw-bold">₹{{ user.amount }}</td>
+        <td>
+          {% if user.current_payment %}
+            {% if user.current_payment.paid %}
+              <span class="badge badge--green">Paid</span>
+            {% else %}
+              <span class="badge badge--yellow">Pending</span>
+              <form method="POST" action="{{ url_for('mark_paid', payment_id=user.current_payment.id) }}" style="display:inline;margin-left:4px">
+                <button type="submit" class="btn-mini btn-mini--green">✓</button>
+              </form>
+            {% endif %}
+          {% else %}
+            <span class="badge badge--gray">No record</span>
+          {% endif %}
+        </td>
+        <td class="muted">{{ user.joined_date.strftime('%d %b %Y') }}</td>
+        <td>
+          <div class="action-btns">
+            <a href="{{ url_for('edit_user', user_id=user.id) }}" class="btn-mini">Edit</a>
+            <form method="POST" action="{{ url_for('delete_user', user_id=user.id) }}" onsubmit="return confirm('Delete {{ user.name }}?')">
+              <button type="submit" class="btn-mini btn-mini--red">Del</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="empty-state">No users found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
