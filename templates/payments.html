@@ -54,10 +54,10 @@
       <tr>
         <th>User</th>
         <th>Bot</th>
-        <th>Plan</th>
         <th>Amount</th>
         <th>Status</th>
         <th>Paid On</th>
+        <th>Note</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -74,7 +74,6 @@
           </div>
         </td>
         <td class="accent">{{ p.user.bot_name }}</td>
-        <td>{{ p.user.plan }}</td>
         <td class="fw-bold">₹{{ p.amount }}</td>
         <td>
           <span class="badge {% if p.paid %}badge--green{% else %}badge--yellow{% endif %}">
@@ -82,6 +81,14 @@
           </span>
         </td>
         <td class="muted">{{ p.paid_date.strftime('%d %b %Y') if p.paid_date else '—' }}</td>
+        <td style="min-width:160px">
+          <form method="POST" action="{{ url_for('update_payment_note', payment_id=p.id) }}"
+                class="note-form">
+            <input type="text" name="note" value="{{ p.note or '' }}"
+                   placeholder="Add note…" class="note-input"
+                   title="Enter note and press Enter to save" />
+          </form>
+        </td>
         <td>
           <div class="action-btns">
             {% if not p.paid %}
@@ -94,8 +101,8 @@
             </form>
             {% endif %}
             <form method="POST" action="{{ url_for('delete_payment', payment_id=p.id) }}"
-                  onsubmit="return confirm('Delete this payment record for {{ p.user.name }}?')">
-              <button type="submit" class="btn-mini btn-mini--red" title="Delete record">🗑</button>
+                  onsubmit="return confirm('Delete payment record for {{ p.user.name }}?')">
+              <button type="submit" class="btn-mini btn-mini--red" title="Delete">🗑</button>
             </form>
           </div>
         </td>
@@ -104,11 +111,21 @@
       <tr>
         <td colspan="7" class="empty-state">
           No records for {{ current_month }}.<br>
-          <small style="color:var(--muted)">Users page pe jaao — records auto-generate hote hain. Ya "Generate Records" click karo.</small>
+          <small class="muted">Records auto-generate hote hain jab is page par aao. Ya "Generate Records" click karo.</small>
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+
+<script>
+// Save note on Enter or on blur
+document.querySelectorAll('.note-form').forEach(form => {
+  const inp = form.querySelector('.note-input');
+  const save = () => form.submit();
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+  inp.addEventListener('blur', save);
+});
+</script>
 {% endblock %}
