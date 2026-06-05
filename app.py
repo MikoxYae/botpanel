@@ -204,12 +204,17 @@ def users():
             BotUser.telegram_id.ilike(f"%{search}%")))
     if bot_filter:
         query = query.filter(BotUser.bot_name == bot_filter)
-    all_users = query.order_by(BotUser.joined_date.desc()).all()
+    all_users_raw = query.order_by(BotUser.joined_date.desc()).all()
     all_bots  = [r[0] for r in db.session.query(BotUser.bot_name)
                  .filter(BotUser.deleted_at == None).distinct().all()]
     today = date.today()
 
     sel_date = date(sel_year, sel_month, 1)
+    # Only show users who were active in the selected month
+    all_users = [u for u in all_users_raw
+                 if (u.start_date or u.joined_date) is None
+                 or date((u.start_date or u.joined_date).year,
+                         (u.start_date or u.joined_date).month, 1) <= sel_date]
     auto_created = 0
     for u in all_users:
         user_start = u.start_date or u.joined_date
