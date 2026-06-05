@@ -16,7 +16,15 @@
   </div>
 </div>
 
-<!-- Month selector -->
+<!-- Year + Month selector -->
+<div class="filter-bar" style="margin-bottom:12px">
+  <div class="year-tabs">
+    {% for y in years_list %}
+    <a href="{{ url_for('payments', month=sel_month, year=y) }}"
+       class="year-tab {% if y == sel_year %}active{% endif %}">{{ y }}</a>
+    {% endfor %}
+  </div>
+</div>
 <div class="month-selector">
   {% for num, name in months_list %}
   <a href="{{ url_for('payments', month=num, year=sel_year) }}"
@@ -50,7 +58,7 @@
         <th>Amount</th>
         <th>Status</th>
         <th>Paid On</th>
-        <th>Action</th>
+        <th>Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -73,21 +81,32 @@
             {% if p.paid %}✓ Paid{% else %}Pending{% endif %}
           </span>
         </td>
-        <td class="muted">{{ p.paid_date.strftime('%d %b') if p.paid_date else '—' }}</td>
+        <td class="muted">{{ p.paid_date.strftime('%d %b %Y') if p.paid_date else '—' }}</td>
         <td>
-          {% if not p.paid %}
-          <form method="POST" action="{{ url_for('mark_paid', payment_id=p.id) }}">
-            <button type="submit" class="btn btn-primary btn-sm">Mark Paid</button>
-          </form>
-          {% else %}
-          <form method="POST" action="{{ url_for('mark_unpaid', payment_id=p.id) }}">
-            <button type="submit" class="btn btn-ghost btn-sm">Undo</button>
-          </form>
-          {% endif %}
+          <div class="action-btns">
+            {% if not p.paid %}
+            <form method="POST" action="{{ url_for('mark_paid', payment_id=p.id) }}">
+              <button type="submit" class="btn btn-primary btn-sm">✓ Paid</button>
+            </form>
+            {% else %}
+            <form method="POST" action="{{ url_for('mark_unpaid', payment_id=p.id) }}">
+              <button type="submit" class="btn btn-ghost btn-sm">Undo</button>
+            </form>
+            {% endif %}
+            <form method="POST" action="{{ url_for('delete_payment', payment_id=p.id) }}"
+                  onsubmit="return confirm('Delete this payment record for {{ p.user.name }}?')">
+              <button type="submit" class="btn-mini btn-mini--red" title="Delete record">🗑</button>
+            </form>
+          </div>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7" class="empty-state">No records for this month. Click "Generate Records" to create them.</td></tr>
+      <tr>
+        <td colspan="7" class="empty-state">
+          No records for {{ current_month }}.<br>
+          <small style="color:var(--muted)">Users page pe jaao — records auto-generate hote hain. Ya "Generate Records" click karo.</small>
+        </td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>
