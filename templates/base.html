@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{% block title %}BotPanel{% endblock %} — Telegram VPS Manager</title>
+  <title>{% block title %}Dashboard{% endblock %} — Yae Miko</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 </head>
@@ -12,10 +12,10 @@
   <div class="layout">
     <aside class="sidebar">
       <div class="sidebar-logo">
-        <span class="logo-icon">🤖</span>
+        <span class="logo-icon">🌸</span>
         <div>
-          <div class="logo-title">BotPanel</div>
-          <div class="logo-sub">Telegram VPS Manager</div>
+          <div class="logo-title">Yae Miko</div>
+          <div class="logo-sub">VPS Dashboard</div>
         </div>
       </div>
 
@@ -31,6 +31,9 @@
         </a>
         <a href="{{ url_for('monthly') }}" class="nav-item {% if request.endpoint == 'monthly' %}active{% endif %}">
           <span class="nav-icon">◌</span> Monthly
+        </a>
+        <a href="{{ url_for('logs') }}" class="nav-item {% if request.endpoint == 'logs' %}active{% endif %}">
+          <span class="nav-icon">📋</span> Logs
         </a>
         <a href="{{ url_for('trash') }}" class="nav-item {% if request.endpoint == 'trash' %}active{% endif %}">
           <span class="nav-icon">🗑</span> Trash
