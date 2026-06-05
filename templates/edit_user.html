@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Edit User{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Edit User</h1>
+    <p class="page-sub">{{ user.name }}</p>
+  </div>
+  <a href="{{ url_for('users') }}" class="btn btn-outline">← Back</a>
+</div>
+
+<div class="card form-card">
+  <form method="POST" action="{{ url_for('edit_user', user_id=user.id) }}">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Full Name</label>
+        <input type="text" name="name" value="{{ user.name }}" required />
+      </div>
+      <div class="form-group">
+        <label>Telegram ID (read-only)</label>
+        <input type="text" value="{{ user.telegram_id }}" disabled class="input-disabled" />
+      </div>
+      <div class="form-group">
+        <label>Bot Name</label>
+        <input type="text" name="bot_name" value="{{ user.bot_name }}" required />
+      </div>
+      <div class="form-group">
+        <label>Plan</label>
+        <select name="plan">
+          {% for p in ['Starter','Basic','Standard','Pro','Premium'] %}
+          <option value="{{ p }}" {% if p == user.plan %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Monthly Amount (₹)</label>
+        <input type="number" name="amount" value="{{ user.amount }}" min="1" required />
+      </div>
+      <div class="form-group form-group--full">
+        <label>Notes</label>
+        <textarea name="notes" rows="3">{{ user.notes }}</textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <a href="{{ url_for('users') }}" class="btn btn-ghost">Cancel</a>
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
