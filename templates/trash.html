@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Trash{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">🗑 Trash</h1>
+    <p class="page-sub">{{ deleted_users|length }} deleted users — restore or permanently delete</p>
+  </div>
+  <a href="{{ url_for('users') }}" class="btn btn-outline">← Back to Users</a>
+</div>
+
+<div class="card">
+  {% if deleted_users %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>User</th>
+        <th>Telegram ID</th>
+        <th>Bot</th>
+        <th>Plan / Amount</th>
+        <th>Deleted On</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for user in deleted_users %}
+      <tr style="opacity:0.75">
+        <td>
+          <div class="user-cell">
+            <div class="avatar" style="--hue:0deg;filter:grayscale(1)">{{ user.name[0] }}</div>
+            <div>
+              <div class="user-name">{{ user.name }}</div>
+              {% if user.notes %}<div class="muted text-xs">{{ user.notes[:40] }}</div>{% endif %}
+            </div>
+          </div>
+        </td>
+        <td><code class="tg-id">{{ user.telegram_id }}</code></td>
+        <td class="muted">{{ user.bot_name }}</td>
+        <td>
+          <div class="muted">{{ user.plan }}</div>
+          <div class="muted">₹{{ user.amount }}/mo</div>
+        </td>
+        <td class="muted text-xs">
+          {{ user.deleted_at.strftime('%d %b %Y, %H:%M') if user.deleted_at else '—' }}
+        </td>
+        <td>
+          <div class="action-btns">
+            <form method="POST" action="{{ url_for('restore_user', user_id=user.id) }}">
+              <button type="submit" class="btn btn-primary btn-sm">↩ Restore</button>
+            </form>
+            <form method="POST" action="{{ url_for('purge_user', user_id=user.id) }}"
+                  onsubmit="return confirm('PERMANENTLY delete {{ user.name }}? This cannot be undone!')">
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:#f87171">
+                ✕ Delete Forever
+              </button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state" style="padding:60px">
+    🗑 Trash is empty.<br>
+    <span class="muted text-xs">Deleted users will appear here for recovery.</span>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
