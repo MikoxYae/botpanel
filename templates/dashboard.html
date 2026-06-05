@@ -31,8 +31,13 @@
   </div>
   <div class="stat-card stat-card--blue">
     <div class="stat-icon">💰</div>
-    <div class="stat-value">₹{{ "{:,}".format(revenue) }}</div>
-    <div class="stat-label">Revenue Collected</div>
+    <div class="stat-value">₹{{ "{:,}".format(revenue + pending_revenue) }}</div>
+    <div class="stat-label">Total Revenue</div>
+    <div style="font-size:11px;margin-top:6px;color:var(--muted)">
+      <span style="color:#34d399">₹{{ "{:,}".format(revenue) }} collected</span>
+      &nbsp;·&nbsp;
+      <span style="color:#fbbf24">₹{{ "{:,}".format(pending_revenue) }} pending</span>
+    </div>
   </div>
 </div>
 
