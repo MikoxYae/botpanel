@@ -600,12 +600,14 @@ def logs_clear():
 @login_required
 def api_stats():
     now     = datetime.now()
-    monthly = []
+    year    = int(request.args.get("year", now.year))
+    collected, pending = [], []
     for m in range(1, 13):
-        pays = (Payment.query.filter_by(month=m, year=now.year)
+        pays = (Payment.query.filter_by(month=m, year=year)
                 .join(BotUser).filter(BotUser.deleted_at == None).all())
-        monthly.append(sum(p.amount for p in pays if p.paid))
-    return jsonify({"monthly_revenue": monthly, "year": now.year})
+        collected.append(sum(p.amount for p in pays if p.paid))
+        pending.append(sum(p.amount for p in pays if not p.paid))
+    return jsonify({"monthly_revenue": collected, "monthly_pending": pending, "year": year})
 
 
 if __name__ == "__main__":
