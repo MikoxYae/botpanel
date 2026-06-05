@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Payments{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Payments</h1>
+    <p class="page-sub">{{ current_month }}</p>
+  </div>
+  <div class="header-actions">
+    <a href="{{ url_for('export_csv', month=sel_month, year=sel_year) }}" class="btn btn-outline">↓ CSV</a>
+    <form method="POST" action="{{ url_for('generate_payments') }}" style="display:inline">
+      <input type="hidden" name="month" value="{{ sel_month }}" />
+      <input type="hidden" name="year" value="{{ sel_year }}" />
+      <button type="submit" class="btn btn-outline">⚡ Generate Records</button>
+    </form>
+  </div>
+</div>
+
+<!-- Month selector -->
+<div class="month-selector">
+  {% for num, name in months_list %}
+  <a href="{{ url_for('payments', month=num, year=sel_year) }}"
+     class="month-tab {% if num == sel_month %}active{% endif %}">{{ name[:3] }}</a>
+  {% endfor %}
+</div>
+
+<!-- Summary -->
+<div class="stats-grid stats-grid--3">
+  <div class="stat-card stat-card--green">
+    <div class="stat-value">₹{{ "{:,}".format(paid_total) }}</div>
+    <div class="stat-label">Collected</div>
+  </div>
+  <div class="stat-card stat-card--yellow">
+    <div class="stat-value">₹{{ "{:,}".format(pending_total) }}</div>
+    <div class="stat-label">Pending</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ payments|length }}</div>
+    <div class="stat-label">Total Records</div>
+  </div>
+</div>
+
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>User</th>
+        <th>Bot</th>
+        <th>Plan</th>
+        <th>Amount</th>
+        <th>Status</th>
+        <th>Paid On</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in payments %}
+      <tr>
+        <td>
+          <div class="user-cell">
+            <div class="avatar" style="--hue:{{ (loop.index * 55 + 200) % 360 }}deg">{{ p.user.name[0] }}</div>
+            <div>
+              <div class="user-name">{{ p.user.name }}</div>
+              <code class="tg-id">{{ p.user.telegram_id }}</code>
+            </div>
+          </div>
+        </td>
+        <td class="accent">{{ p.user.bot_name }}</td>
+        <td>{{ p.user.plan }}</td>
+        <td class="fw-bold">₹{{ p.amount }}</td>
+        <td>
+          <span class="badge {% if p.paid %}badge--green{% else %}badge--yellow{% endif %}">
+            {% if p.paid %}✓ Paid{% else %}Pending{% endif %}
+          </span>
+        </td>
+        <td class="muted">{{ p.paid_date.strftime('%d %b') if p.paid_date else '—' }}</td>
+        <td>
+          {% if not p.paid %}
+          <form method="POST" action="{{ url_for('mark_paid', payment_id=p.id) }}">
+            <button type="submit" class="btn btn-primary btn-sm">Mark Paid</button>
+          </form>
+          {% else %}
+          <form method="POST" action="{{ url_for('mark_unpaid', payment_id=p.id) }}">
+            <button type="submit" class="btn btn-ghost btn-sm">Undo</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="empty-state">No records for this month. Click "Generate Records" to create them.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
