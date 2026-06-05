@@ -234,11 +234,31 @@ def add_user():
                        plan=plan, amount=amount, notes=notes, start_date=start_date)
         db.session.add(user)
         db.session.flush()
+
         now = datetime.now()
-        db.session.add(Payment(user_id=user.id, month=now.month, year=now.year,
-                               amount=amount, paid=False))
+        # Create payment records from start_date month → current month (backfill)
+        if start_date:
+            cur = date(start_date.year, start_date.month, 1)
+            end = date(now.year, now.month, 1)
+            while cur <= end:
+                db.session.add(Payment(user_id=user.id, month=cur.month, year=cur.year,
+                                       amount=amount, paid=False))
+                # advance one month
+                if cur.month == 12:
+                    cur = date(cur.year + 1, 1, 1)
+                else:
+                    cur = date(cur.year, cur.month + 1, 1)
+        else:
+            # No start_date — just create current month record
+            db.session.add(Payment(user_id=user.id, month=now.month, year=now.year,
+                                   amount=amount, paid=False))
+
         db.session.commit()
-        flash(f"User {name} added!", "success")
+        if start_date and (start_date.year, start_date.month) < (now.year, now.month):
+            months_created = (now.year - start_date.year) * 12 + now.month - start_date.month + 1
+            flash(f"User {name} added! {months_created} month(s) of payment records created (backfilled from {start_date.strftime('%b %Y')}).", "success")
+        else:
+            flash(f"User {name} added!", "success")
         return redirect(url_for("users"))
     return render_template("add_user.html", today=date.today().isoformat())
 
@@ -299,12 +319,51 @@ def purge_user(user_id):
     return redirect(url_for("trash"))
 
 
+@app.route("/users/<int:user_id>/backfill", methods=["POST"])
+@login_required
+def backfill_user(user_id):
+    user = BotUser.query.get_or_404(user_id)
+    if not user.start_date:
+        flash("Start date set nahi hai — pehle edit kar ke start date daalo.", "error")
+        return redirect(url_for("edit_user", user_id=user_id))
+    now = datetime.now()
+    cur = date(user.start_date.year, user.start_date.month, 1)
+    end = date(now.year, now.month, 1)
+    created = 0
+    while cur <= end:
+        if not Payment.query.filter_by(user_id=user.id, month=cur.month, year=cur.year).first():
+            db.session.add(Payment(user_id=user.id, month=cur.month, year=cur.year,
+                                   amount=user.amount, paid=False))
+            created += 1
+        if cur.month == 12:
+            cur = date(cur.year + 1, 1, 1)
+        else:
+            cur = date(cur.year, cur.month + 1, 1)
+    db.session.commit()
+    flash(f"{user.name}: {created} missing payment record(s) backfilled from {user.start_date.strftime('%b %Y')} to {now.strftime('%b %Y')}.", "success")
+    return redirect(url_for("users"))
+
+
 @app.route("/payments")
 @login_required
 def payments():
     now   = datetime.now()
     month = int(request.args.get("month", now.month))
     year  = int(request.args.get("year", now.year))
+
+    # Auto-generate payment records for selected month (like users page)
+    auto_created = 0
+    for user in BotUser.query.filter_by(deleted_at=None).all():
+        # Only generate if selected month is within user's service period
+        start = user.start_date or user.joined_date
+        if start and date(year, month, 1) >= date(start.year, start.month, 1):
+            if not Payment.query.filter_by(user_id=user.id, month=month, year=year).first():
+                db.session.add(Payment(user_id=user.id, month=month, year=year,
+                                       amount=user.amount, paid=False))
+                auto_created += 1
+    if auto_created:
+        db.session.commit()
+
     all_payments = (
         Payment.query.filter_by(month=month, year=year)
         .join(BotUser).filter(BotUser.deleted_at == None)
