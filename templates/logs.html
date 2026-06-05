@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Live Logs{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">📋 Live Logs</h1>
+    <p class="page-sub" id="log-status">Auto-refreshing every 4 seconds…</p>
+  </div>
+  <div class="header-actions">
+    <button onclick="fetchLogs()" class="btn btn-outline" id="refresh-btn">↺ Refresh</button>
+    <form method="POST" action="{{ url_for('logs_clear') }}"
+          onsubmit="return confirm('Clear all logs?')">
+      <button type="submit" class="btn btn-ghost" style="color:#f87171">🗑 Clear Logs</button>
+    </form>
+    <label class="auto-refresh-toggle">
+      <input type="checkbox" id="auto-toggle" checked onchange="toggleAuto(this.checked)" />
+      Auto
+    </label>
+  </div>
+</div>
+
+<div class="card" style="padding:0;overflow:hidden">
+  <div class="logs-toolbar">
+    <input type="text" id="log-filter" placeholder="🔍 Filter logs..." class="search-input" style="flex:1" oninput="applyFilter()" />
+    <select id="log-level" class="select-sm" onchange="applyFilter()">
+      <option value="">All</option>
+      <option value="ERROR">Errors</option>
+      <option value="INFO">Info</option>
+      <option value="LOGIN">Logins</option>
+      <option value="PAYMENT">Payments</option>
+    </select>
+    <span class="muted" id="line-count" style="font-size:12px;white-space:nowrap">— lines</span>
+  </div>
+  <div id="log-output" class="log-output"></div>
+</div>
+
+<script>
+let autoRefresh = true;
+let timer = null;
+let allLines = [];
+
+async function fetchLogs() {
+  try {
+    const res = await fetch('/logs/data');
+    const data = await res.json();
+    allLines = data.lines || [];
+    applyFilter();
+    document.getElementById('log-status').textContent =
+      'Last updated: ' + new Date().toLocaleTimeString();
+  } catch(e) {
+    document.getElementById('log-status').textContent = 'Fetch error: ' + e.message;
+  }
+}
+
+function applyFilter() {
+  const q = document.getElementById('log-filter').value.toLowerCase();
+  const lvl = document.getElementById('log-level').value.toUpperCase();
+  const filtered = allLines.filter(l => {
+    if (q && !l.toLowerCase().includes(q)) return false;
+    if (lvl && !l.toUpperCase().includes(lvl)) return false;
+    return true;
+  });
+  renderLines(filtered);
+}
+
+function renderLines(lines) {
+  const el = document.getElementById('log-output');
+  document.getElementById('line-count').textContent = lines.length + ' lines';
+  el.innerHTML = lines.map(l => {
+    let cls = 'log-line';
+    const u = l.toUpperCase();
+    if (u.includes('ERROR') || u.includes('FAIL') || u.includes('500')) cls += ' log-error';
+    else if (u.includes('LOGIN') || u.includes('AUTH')) cls += ' log-login';
+    else if (u.includes('PAID') || u.includes('PAYMENT')) cls += ' log-pay';
+    else if (u.includes('WARN')) cls += ' log-warn';
+    return `<div class="${cls}">${escHtml(l)}</div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function toggleAuto(on) {
+  autoRefresh = on;
+  if (on) startTimer(); else { clearInterval(timer); timer = null; }
+}
+
+function startTimer() {
+  clearInterval(timer);
+  timer = setInterval(fetchLogs, 4000);
+}
+
+fetchLogs();
+startTimer();
+</script>
+{% endblock %}
