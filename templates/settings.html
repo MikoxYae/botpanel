@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">⚙ Settings</h1>
+    <p class="page-sub">Quick Links aur account settings</p>
+  </div>
+</div>
+
+<div class="two-col">
+
+  <!-- ── Quick Links ── -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">🔗 Quick Links / Custom Buttons</span>
+    </div>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:16px">
+      Apni GitHub repo, dashboard ya koi bhi URL yahan add karo — sidebar mein button ban jayega.
+    </p>
+
+    <form method="POST" action="{{ url_for('settings') }}" class="settings-form">
+      <input type="hidden" name="action" value="add_link" />
+      <div class="form-grid" style="grid-template-columns:60px 1fr 2fr auto">
+        <div class="form-group">
+          <label>Icon</label>
+          <input type="text" name="icon" value="🔗" maxlength="4" style="text-align:center;font-size:20px" />
+        </div>
+        <div class="form-group">
+          <label>Button Name *</label>
+          <input type="text" name="title" placeholder="GitHub Repo" required />
+        </div>
+        <div class="form-group">
+          <label>URL *</label>
+          <input type="text" name="url" placeholder="https://github.com/..." required />
+        </div>
+        <div class="form-group" style="align-self:flex-end">
+          <button type="submit" class="btn btn-primary" style="width:100%">+ Add</button>
+        </div>
+      </div>
+    </form>
+
+    {% if links %}
+    <div style="margin-top:8px">
+      {% for lnk in links %}
+      <div class="quick-link-row">
+        <span class="link-icon">{{ lnk.icon }}</span>
+        <div style="flex:1;min-width:0">
+          <div class="user-name">{{ lnk.title }}</div>
+          <a href="{{ lnk.url }}" target="_blank" class="link-url">{{ lnk.url }}</a>
+        </div>
+        <form method="POST" action="{{ url_for('settings') }}"
+              onsubmit="return confirm('Delete this link?')">
+          <input type="hidden" name="action" value="delete_link" />
+          <input type="hidden" name="link_id" value="{{ lnk.id }}" />
+          <button type="submit" class="btn-mini btn-mini--red">✕</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding:32px">
+      Koi quick link nahi hai abhi.<br>
+      <span class="muted text-xs">Upar form se add karo — sidebar mein dikh jayega.</span>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Change Password ── -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">🔒 Change Password</span>
+    </div>
+    <form method="POST" action="{{ url_for('settings') }}" class="settings-form">
+      <input type="hidden" name="action" value="change_password" />
+      <div class="form-grid" style="grid-template-columns:1fr">
+        <div class="form-group">
+          <label>Current Password</label>
+          <input type="password" name="old_password" required placeholder="••••••" />
+        </div>
+        <div class="form-group">
+          <label>New Password (min 6 chars)</label>
+          <input type="password" name="new_password" required placeholder="••••••" minlength="6" />
+        </div>
+        <button type="submit" class="btn btn-primary">Change Password</button>
+      </div>
+    </form>
+
+    <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border)">
+      <div class="card-title" style="font-size:13px;margin-bottom:12px">ℹ️ App Info</div>
+      <div class="info-row"><span class="muted">Version</span><span>BotPanel v2.0</span></div>
+      <div class="info-row"><span class="muted">Database</span><span>PostgreSQL</span></div>
+      <div class="info-row"><span class="muted">Framework</span><span>Flask 3.0</span></div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
