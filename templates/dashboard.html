@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Overview</h1>
+    <p class="page-sub">{{ current_month }}</p>
+  </div>
+  <div class="header-actions">
+    <a href="{{ url_for('export_csv') }}" class="btn btn-outline">↓ Export CSV</a>
+    <a href="{{ url_for('add_user') }}" class="btn btn-primary">+ Add User</a>
+  </div>
+</div>
+
+<!-- Stats grid -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon">👥</div>
+    <div class="stat-value">{{ total_users }}</div>
+    <div class="stat-label">Total Users</div>
+  </div>
+  <div class="stat-card stat-card--green">
+    <div class="stat-icon">✅</div>
+    <div class="stat-value">{{ paid_count }}</div>
+    <div class="stat-label">Paid This Month</div>
+  </div>
+  <div class="stat-card stat-card--yellow">
+    <div class="stat-icon">⏳</div>
+    <div class="stat-value">{{ pending_count }}</div>
+    <div class="stat-label">Pending</div>
+  </div>
+  <div class="stat-card stat-card--blue">
+    <div class="stat-icon">💰</div>
+    <div class="stat-value">₹{{ "{:,}".format(revenue) }}</div>
+    <div class="stat-label">Revenue Collected</div>
+  </div>
+</div>
+
+<div class="two-col">
+  <!-- Revenue chart -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Revenue Trend — {{ current_month[:4] if current_month|length > 4 else '' }}{{ current_month[-4:] }}</span>
+      <div class="header-actions">
+        <select id="yearSelect" class="select-sm" onchange="loadChart(this.value)">
+          <option value="{{ current_month[-4:] }}">{{ current_month[-4:] }}</option>
+        </select>
+      </div>
+    </div>
+    <canvas id="revenueChart" height="200"></canvas>
+  </div>
+
+  <!-- Recent payments -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Recent Activity</span>
+      <a href="{{ url_for('payments') }}" class="link-sm">View all →</a>
+    </div>
+    <div class="activity-list">
+      {% for p in recent_payments %}
+      <div class="activity-item">
+        <div class="activity-avatar">{{ p.user.name[0] }}</div>
+        <div class="activity-info">
+          <div class="activity-name">{{ p.user.name }}</div>
+          <div class="activity-meta">{{ p.user.bot_name }} · ₹{{ p.amount }}</div>
+        </div>
+        <span class="badge {% if p.paid %}badge--green{% else %}badge--yellow{% endif %}">
+          {% if p.paid %}Paid{% else %}Pending{% endif %}
+        </span>
+      </div>
+      {% else %}
+      <div class="empty-state">No payments recorded this month.<br>
+        <a href="{{ url_for('generate_payments') }}" style="color:var(--accent)">Generate records →</a>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<script>
+async function loadChart(year) {
+  const res = await fetch('/api/stats');
+  const data = await res.json();
+  const labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const ctx = document.getElementById('revenueChart').getContext('2d');
+  if (window._chart) window._chart.destroy();
+  window._chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Revenue (₹)',
+        data: data.monthly_revenue,
+        backgroundColor: labels.map((_, i) => i === new Date().getMonth() ? '#38bdf8' : '#1a3a5c'),
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#0f1d2e' }, ticks: { color: '#4a6080' } },
+        y: { grid: { color: '#0f1d2e' }, ticks: { color: '#4a6080', callback: v => '₹' + v.toLocaleString() } }
+      }
+    }
+  });
+}
+loadChart();
+</script>
+{% endblock %}
