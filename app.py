@@ -221,7 +221,8 @@ def users():
     for u in all_users:
         u.current_payment = Payment.query.filter_by(
             user_id=u.id, month=sel_month, year=sel_year).first()
-        u.months_running = (today - u.start_date).days // 30 if u.start_date else 0
+        _ref = u.start_date or u.joined_date
+        u.months_running = (today - _ref).days // 30 if _ref else 0
 
     months_list = [(m, datetime(sel_year, m, 1).strftime("%B")) for m in range(1, 13)]
     return render_template(
@@ -246,7 +247,7 @@ def add_user():
         start_date_str = request.form.get("start_date", "").strip()
         start_date     = datetime.strptime(start_date_str, "%Y-%m-%d").date() if start_date_str else None
 
-        if BotUser.query.filter_by(telegram_id=telegram_id).first():
+        if BotUser.query.filter(BotUser.telegram_id == telegram_id, BotUser.deleted_at == None).first():
             flash("Telegram ID already exists!", "error")
             return redirect(url_for("add_user"))
 
