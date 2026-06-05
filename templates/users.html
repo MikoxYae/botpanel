@@ -4,7 +4,7 @@
 <div class="page-header">
   <div>
     <h1 class="page-title">Users</h1>
-    <p class="page-sub">{{ users|length }} users found</p>
+    <p class="page-sub">{{ users|length }} users · {{ months_list[sel_month-1][1] }} {{ sel_year }}</p>
   </div>
   <a href="{{ url_for('add_user') }}" class="btn btn-primary">+ Add User</a>
 </div>
@@ -12,7 +12,10 @@
 <!-- Filters -->
 <div class="filter-bar">
   <form method="GET" action="{{ url_for('users') }}" class="filter-form">
-    <input type="text" name="q" placeholder="🔍 Search name / Telegram ID..." value="{{ search }}" class="search-input" />
+    <input type="hidden" name="month" value="{{ sel_month }}" />
+    <input type="hidden" name="year"  value="{{ sel_year }}" />
+    <input type="text" name="q" placeholder="🔍 Search name / Telegram ID..."
+           value="{{ search }}" class="search-input" />
     <select name="bot" class="select-sm">
       <option value="">All Bots</option>
       {% for bot in all_bots %}
@@ -21,9 +24,23 @@
     </select>
     <button type="submit" class="btn btn-outline">Filter</button>
     {% if search or bot_filter %}
-    <a href="{{ url_for('users') }}" class="btn btn-ghost">Clear</a>
+    <a href="{{ url_for('users', month=sel_month, year=sel_year) }}" class="btn btn-ghost">Clear</a>
     {% endif %}
   </form>
+</div>
+
+<!-- Month selector for payment view -->
+<div class="month-selector">
+  {% for num, name in months_list %}
+  <a href="{{ url_for('users', month=num, year=sel_year, q=search, bot=bot_filter) }}"
+     class="month-tab {% if num == sel_month %}active{% endif %}">{{ name[:3] }}</a>
+  {% endfor %}
+  <div class="year-tabs" style="margin-left:auto">
+    {% for y in range(sel_year-1, sel_year+2) %}
+    <a href="{{ url_for('users', month=sel_month, year=y, q=search, bot=bot_filter) }}"
+       class="year-tab {% if y == sel_year %}active{% endif %}">{{ y }}</a>
+    {% endfor %}
+  </div>
 </div>
 
 <div class="card">
@@ -36,7 +53,7 @@
         <th>Bot</th>
         <th>Plan / Amount</th>
         <th>Start Date</th>
-        <th>This Month</th>
+        <th>{{ months_list[sel_month-1][1] }} {{ sel_year }} Payment</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -70,12 +87,20 @@
         <td>
           {% if user.current_payment %}
             {% if user.current_payment.paid %}
-              <span class="badge badge--green">✓ Paid</span>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <span class="badge badge--green">✓ Paid</span>
+                {% if user.current_payment.paid_date %}
+                <span class="muted text-xs">{{ user.current_payment.paid_date.strftime('%d %b') }}</span>
+                {% endif %}
+                <form method="POST" action="{{ url_for('mark_unpaid', payment_id=user.current_payment.id) }}">
+                  <button type="submit" class="btn-mini" title="Undo">↩</button>
+                </form>
+              </div>
             {% else %}
               <div style="display:flex;align-items:center;gap:6px">
                 <span class="badge badge--yellow">Pending</span>
                 <form method="POST" action="{{ url_for('mark_paid', payment_id=user.current_payment.id) }}">
-                  <button type="submit" class="btn-mini btn-mini--green">✓</button>
+                  <button type="submit" class="btn-mini btn-mini--green" title="Mark Paid">✓</button>
                 </form>
               </div>
             {% endif %}
@@ -86,8 +111,9 @@
         <td>
           <div class="action-btns">
             <a href="{{ url_for('edit_user', user_id=user.id) }}" class="btn-mini">Edit</a>
-            <form method="POST" action="{{ url_for('delete_user', user_id=user.id) }}" onsubmit="return confirm('Delete {{ user.name }}?')">
-              <button type="submit" class="btn-mini btn-mini--red">Del</button>
+            <form method="POST" action="{{ url_for('delete_user', user_id=user.id) }}"
+                  onsubmit="return confirm('Move {{ user.name }} to Trash?')">
+              <button type="submit" class="btn-mini btn-mini--red">🗑</button>
             </form>
           </div>
         </td>
