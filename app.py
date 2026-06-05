@@ -14,12 +14,10 @@ app.secret_key = os.environ.get("SECRET_KEY", "botpanel-fixed-secret-key-2025")
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("BOTPANEL_DB_URL", "sqlite:///botpanel.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True, "pool_recycle": 300}
-
-# ── Session: permanent 30 days, never logout on refresh ──────────────────────
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-app.config["SESSION_COOKIE_SECURE"] = False   # set True if you add HTTPS
+app.config["SESSION_COOKIE_SECURE"] = False
 
 db = SQLAlchemy(app)
 
@@ -40,16 +38,17 @@ class Admin(db.Model):
 
 class BotUser(db.Model):
     __tablename__ = "bot_user"
-    id           = db.Column(db.Integer, primary_key=True)
-    name         = db.Column(db.String(120), nullable=False)
-    telegram_id  = db.Column(db.String(50), unique=True, nullable=False)
-    bot_name     = db.Column(db.String(80), nullable=False)
-    plan         = db.Column(db.String(50), default="Basic")
-    amount       = db.Column(db.Integer, default=299)
-    start_date   = db.Column(db.Date, nullable=True)          # when bot hosting started
-    joined_date  = db.Column(db.Date, default=date.today)     # when added to panel
-    notes        = db.Column(db.Text, default="")
-    payments     = db.relationship("Payment", backref="user", lazy=True, cascade="all, delete-orphan")
+    id          = db.Column(db.Integer, primary_key=True)
+    name        = db.Column(db.String(120), nullable=False)
+    telegram_id = db.Column(db.String(50), unique=True, nullable=False)
+    bot_name    = db.Column(db.String(80), nullable=False)
+    plan        = db.Column(db.String(50), default="Basic")
+    amount      = db.Column(db.Integer, default=299)
+    start_date  = db.Column(db.Date, nullable=True)
+    joined_date = db.Column(db.Date, default=date.today)
+    notes       = db.Column(db.Text, default="")
+    deleted_at  = db.Column(db.DateTime, nullable=True)   # soft delete
+    payments    = db.relationship("Payment", backref="user", lazy=True, cascade="all, delete-orphan")
 
 
 class Payment(db.Model):
@@ -61,6 +60,15 @@ class Payment(db.Model):
     amount     = db.Column(db.Integer, nullable=False)
     paid       = db.Column(db.Boolean, default=False)
     paid_date  = db.Column(db.Date, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class QuickLink(db.Model):
+    __tablename__ = "quick_link"
+    id         = db.Column(db.Integer, primary_key=True)
+    title      = db.Column(db.String(80), nullable=False)
+    url        = db.Column(db.String(500), nullable=False)
+    icon       = db.Column(db.String(10), default="🔗")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -80,20 +88,32 @@ def login_required(f):
 def init_db():
     with app.app_context():
         db.create_all()
-        # Add start_date column if upgrading from older version (PostgreSQL)
-        try:
-            db.session.execute(db.text(
-                "ALTER TABLE bot_user ADD COLUMN IF NOT EXISTS start_date DATE"
-            ))
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-        # Default admin
+        # Migrate old tables safely
+        for stmt in [
+            "ALTER TABLE bot_user ADD COLUMN IF NOT EXISTS start_date DATE",
+            "ALTER TABLE bot_user ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP",
+        ]:
+            try:
+                db.session.execute(db.text(stmt))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
         if not Admin.query.first():
             admin = Admin(username="admin")
             admin.set_password("admin123")
             db.session.add(admin)
             db.session.commit()
+
+
+# ─── Context: quick links available in every template ─────────────────────────
+
+@app.context_processor
+def inject_quick_links():
+    try:
+        links = QuickLink.query.order_by(QuickLink.created_at).all()
+    except Exception:
+        links = []
+    return dict(quick_links=links)
 
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
@@ -107,7 +127,7 @@ def login():
         password = request.form.get("password", "")
         admin = Admin.query.filter_by(username=username).first()
         if admin and admin.check_password(password):
-            session.permanent = True          # ← keep login for 30 days
+            session.permanent = True
             session["admin_id"] = admin.id
             return redirect(url_for("dashboard"))
         flash("Invalid username or password", "error")
@@ -125,25 +145,20 @@ def logout():
 def dashboard():
     now = datetime.now()
     month, year = now.month, now.year
-    total_users = BotUser.query.count()
-    payments_this_month = Payment.query.filter_by(month=month, year=year).all()
+    total_users = BotUser.query.filter_by(deleted_at=None).count()
+    payments_this_month = Payment.query.filter_by(month=month, year=year).join(BotUser).filter(BotUser.deleted_at == None).all()
     paid_count    = sum(1 for p in payments_this_month if p.paid)
     pending_count = sum(1 for p in payments_this_month if not p.paid)
     revenue       = sum(p.amount for p in payments_this_month if p.paid)
     recent_payments = (
-        Payment.query
-        .filter_by(month=month, year=year)
-        .join(BotUser)
-        .order_by(Payment.created_at.desc())
-        .limit(10)
-        .all()
+        Payment.query.filter_by(month=month, year=year)
+        .join(BotUser).filter(BotUser.deleted_at == None)
+        .order_by(Payment.created_at.desc()).limit(10).all()
     )
     return render_template(
         "dashboard.html",
-        total_users=total_users,
-        paid_count=paid_count,
-        pending_count=pending_count,
-        revenue=revenue,
+        total_users=total_users, paid_count=paid_count,
+        pending_count=pending_count, revenue=revenue,
         recent_payments=recent_payments,
         current_month=now.strftime("%B %Y"),
     )
@@ -154,32 +169,47 @@ def dashboard():
 def users():
     search     = request.args.get("q", "").strip()
     bot_filter = request.args.get("bot", "").strip()
-    query = BotUser.query
+    now        = datetime.now()
+    sel_month  = int(request.args.get("month", now.month))
+    sel_year   = int(request.args.get("year",  now.year))
+
+    query = BotUser.query.filter_by(deleted_at=None)
     if search:
         query = query.filter(
-            db.or_(
-                BotUser.name.ilike(f"%{search}%"),
-                BotUser.telegram_id.ilike(f"%{search}%")
-            )
+            db.or_(BotUser.name.ilike(f"%{search}%"),
+                   BotUser.telegram_id.ilike(f"%{search}%"))
         )
     if bot_filter:
         query = query.filter(BotUser.bot_name == bot_filter)
+
     all_users = query.order_by(BotUser.joined_date.desc()).all()
-    all_bots  = [r[0] for r in db.session.query(BotUser.bot_name).distinct().all()]
-    now = datetime.now()
+    all_bots  = [r[0] for r in db.session.query(BotUser.bot_name)
+                 .filter(BotUser.deleted_at == None).distinct().all()]
     today = date.today()
+
+    # Auto-generate payment records for selected month if missing
+    auto_created = 0
+    for u in all_users:
+        existing = Payment.query.filter_by(user_id=u.id, month=sel_month, year=sel_year).first()
+        if not existing:
+            db.session.add(Payment(user_id=u.id, month=sel_month, year=sel_year,
+                                   amount=u.amount, paid=False))
+            auto_created += 1
+    if auto_created:
+        db.session.commit()
+
     for u in all_users:
         u.current_payment = Payment.query.filter_by(
-            user_id=u.id, month=now.month, year=now.year
-        ).first()
-        if u.start_date:
-            u.months_running = (today - u.start_date).days // 30
-        else:
-            u.months_running = 0
+            user_id=u.id, month=sel_month, year=sel_year).first()
+        u.months_running = (today - u.start_date).days // 30 if u.start_date else 0
+
+    months_list = [(m, datetime(sel_year, m, 1).strftime("%B")) for m in range(1, 13)]
     return render_template(
         "users.html",
         users=all_users, all_bots=all_bots,
         search=search, bot_filter=bot_filter,
+        sel_month=sel_month, sel_year=sel_year,
+        months_list=months_list,
     )
 
 
@@ -187,30 +217,28 @@ def users():
 @login_required
 def add_user():
     if request.method == "POST":
-        name        = request.form.get("name", "").strip()
-        telegram_id = request.form.get("telegram_id", "").strip()
-        bot_name    = request.form.get("bot_name", "").strip()
-        plan        = request.form.get("plan", "Basic").strip()
-        amount      = int(request.form.get("amount", 299))
-        notes       = request.form.get("notes", "").strip()
+        name           = request.form.get("name", "").strip()
+        telegram_id    = request.form.get("telegram_id", "").strip()
+        bot_name       = request.form.get("bot_name", "").strip()
+        plan           = request.form.get("plan", "Basic").strip()
+        amount         = int(request.form.get("amount", 299))
+        notes          = request.form.get("notes", "").strip()
         start_date_str = request.form.get("start_date", "").strip()
-        start_date  = datetime.strptime(start_date_str, "%Y-%m-%d").date() if start_date_str else None
+        start_date     = datetime.strptime(start_date_str, "%Y-%m-%d").date() if start_date_str else None
 
         if BotUser.query.filter_by(telegram_id=telegram_id).first():
             flash("Telegram ID already exists!", "error")
             return redirect(url_for("add_user"))
 
-        user = BotUser(
-            name=name, telegram_id=telegram_id, bot_name=bot_name,
-            plan=plan, amount=amount, notes=notes, start_date=start_date,
-        )
+        user = BotUser(name=name, telegram_id=telegram_id, bot_name=bot_name,
+                       plan=plan, amount=amount, notes=notes, start_date=start_date)
         db.session.add(user)
         db.session.flush()
         now = datetime.now()
-        payment = Payment(user_id=user.id, month=now.month, year=now.year, amount=amount, paid=False)
-        db.session.add(payment)
+        db.session.add(Payment(user_id=user.id, month=now.month, year=now.year,
+                               amount=amount, paid=False))
         db.session.commit()
-        flash(f"User {name} added successfully!", "success")
+        flash(f"User {name} added!", "success")
         return redirect(url_for("users"))
     return render_template("add_user.html", today=date.today().isoformat())
 
@@ -225,8 +253,8 @@ def edit_user(user_id):
         user.plan     = request.form.get("plan", user.plan).strip()
         user.amount   = int(request.form.get("amount", user.amount))
         user.notes    = request.form.get("notes", "").strip()
-        start_date_str = request.form.get("start_date", "").strip()
-        user.start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date() if start_date_str else user.start_date
+        sd = request.form.get("start_date", "").strip()
+        user.start_date = datetime.strptime(sd, "%Y-%m-%d").date() if sd else user.start_date
         db.session.commit()
         flash("User updated!", "success")
         return redirect(url_for("users"))
@@ -237,11 +265,38 @@ def edit_user(user_id):
 @login_required
 def delete_user(user_id):
     user = BotUser.query.get_or_404(user_id)
+    user.deleted_at = datetime.utcnow()   # soft delete → goes to trash
+    db.session.commit()
+    flash(f"{user.name} moved to Trash. <a href='{url_for('trash')}'>View Trash</a>", "success")
+    return redirect(url_for("users"))
+
+
+@app.route("/trash")
+@login_required
+def trash():
+    deleted_users = BotUser.query.filter(BotUser.deleted_at != None).order_by(BotUser.deleted_at.desc()).all()
+    return render_template("trash.html", deleted_users=deleted_users)
+
+
+@app.route("/users/<int:user_id>/restore", methods=["POST"])
+@login_required
+def restore_user(user_id):
+    user = BotUser.query.get_or_404(user_id)
+    user.deleted_at = None
+    db.session.commit()
+    flash(f"{user.name} restored!", "success")
+    return redirect(url_for("trash"))
+
+
+@app.route("/users/<int:user_id>/purge", methods=["POST"])
+@login_required
+def purge_user(user_id):
+    user = BotUser.query.get_or_404(user_id)
     name = user.name
     db.session.delete(user)
     db.session.commit()
-    flash(f"User {name} deleted.", "success")
-    return redirect(url_for("users"))
+    flash(f"{name} permanently deleted.", "success")
+    return redirect(url_for("trash"))
 
 
 @app.route("/payments")
@@ -251,23 +306,19 @@ def payments():
     month = int(request.args.get("month", now.month))
     year  = int(request.args.get("year", now.year))
     all_payments = (
-        Payment.query
-        .filter_by(month=month, year=year)
-        .join(BotUser)
-        .order_by(BotUser.name)
-        .all()
+        Payment.query.filter_by(month=month, year=year)
+        .join(BotUser).filter(BotUser.deleted_at == None)
+        .order_by(BotUser.name).all()
     )
     paid_total    = sum(p.amount for p in all_payments if p.paid)
     pending_total = sum(p.amount for p in all_payments if not p.paid)
-    months_list   = [(m, datetime(now.year, m, 1).strftime("%B")) for m in range(1, 13)]
+    months_list   = [(m, datetime(year, m, 1).strftime("%B")) for m in range(1, 13)]
+    years_list    = list(range(now.year - 2, now.year + 2))
     return render_template(
         "payments.html",
-        payments=all_payments,
-        paid_total=paid_total,
-        pending_total=pending_total,
-        sel_month=month,
-        sel_year=year,
-        months_list=months_list,
+        payments=all_payments, paid_total=paid_total, pending_total=pending_total,
+        sel_month=month, sel_year=year,
+        months_list=months_list, years_list=years_list,
         current_month=datetime(year, month, 1).strftime("%B %Y"),
     )
 
@@ -275,38 +326,50 @@ def payments():
 @app.route("/payments/mark/<int:payment_id>", methods=["POST"])
 @login_required
 def mark_paid(payment_id):
-    payment = Payment.query.get_or_404(payment_id)
-    payment.paid      = True
-    payment.paid_date = date.today()
+    p = Payment.query.get_or_404(payment_id)
+    p.paid = True
+    p.paid_date = date.today()
     db.session.commit()
-    flash(f"{payment.user.name} marked as paid!", "success")
+    flash(f"{p.user.name} marked as paid!", "success")
     return redirect(request.referrer or url_for("payments"))
 
 
 @app.route("/payments/unmark/<int:payment_id>", methods=["POST"])
 @login_required
 def mark_unpaid(payment_id):
-    payment = Payment.query.get_or_404(payment_id)
-    payment.paid      = False
-    payment.paid_date = None
+    p = Payment.query.get_or_404(payment_id)
+    p.paid = False
+    p.paid_date = None
     db.session.commit()
-    flash(f"{payment.user.name} marked as unpaid.", "success")
+    flash(f"{p.user.name} marked as unpaid.", "success")
+    return redirect(request.referrer or url_for("payments"))
+
+
+@app.route("/payments/delete/<int:payment_id>", methods=["POST"])
+@login_required
+def delete_payment(payment_id):
+    p = Payment.query.get_or_404(payment_id)
+    name = p.user.name
+    db.session.delete(p)
+    db.session.commit()
+    flash(f"Payment record for {name} deleted.", "success")
     return redirect(request.referrer or url_for("payments"))
 
 
 @app.route("/payments/generate", methods=["POST"])
 @login_required
 def generate_payments():
-    now   = datetime.now()
-    month = int(request.form.get("month", now.month))
-    year  = int(request.form.get("year", now.year))
+    now    = datetime.now()
+    month  = int(request.form.get("month", now.month))
+    year   = int(request.form.get("year", now.year))
     created = 0
-    for user in BotUser.query.all():
+    for user in BotUser.query.filter_by(deleted_at=None).all():
         if not Payment.query.filter_by(user_id=user.id, month=month, year=year).first():
-            db.session.add(Payment(user_id=user.id, month=month, year=year, amount=user.amount, paid=False))
+            db.session.add(Payment(user_id=user.id, month=month, year=year,
+                                   amount=user.amount, paid=False))
             created += 1
     db.session.commit()
-    flash(f"Generated {created} payment records for {datetime(year, month, 1).strftime('%B %Y')}.", "success")
+    flash(f"Generated {created} new records for {datetime(year, month, 1).strftime('%B %Y')}.", "success")
     return redirect(url_for("payments", month=month, year=year))
 
 
@@ -316,7 +379,8 @@ def monthly():
     now = datetime.now()
     months_data = []
     for m in range(1, 13):
-        pays = Payment.query.filter_by(month=m, year=now.year).all()
+        pays = (Payment.query.filter_by(month=m, year=now.year)
+                .join(BotUser).filter(BotUser.deleted_at == None).all())
         months_data.append({
             "month":       datetime(now.year, m, 1).strftime("%B"),
             "month_num":   m,
@@ -333,17 +397,16 @@ def monthly():
 @app.route("/export/csv")
 @login_required
 def export_csv():
-    month    = int(request.args.get("month", datetime.now().month))
-    year     = int(request.args.get("year", datetime.now().year))
-    pays     = Payment.query.filter_by(month=month, year=year).join(BotUser).all()
-    output   = io.StringIO()
-    writer   = csv.writer(output)
-    writer.writerow(["Name", "Telegram ID", "Bot", "Plan", "Amount", "Status",
-                     "Paid Date", "Start Date", "Month"])
+    month  = int(request.args.get("month", datetime.now().month))
+    year   = int(request.args.get("year",  datetime.now().year))
+    pays   = (Payment.query.filter_by(month=month, year=year)
+              .join(BotUser).filter(BotUser.deleted_at == None).all())
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Name","Telegram ID","Bot","Plan","Amount","Status","Paid Date","Start Date","Month"])
     for p in pays:
         writer.writerow([
-            p.user.name, p.user.telegram_id, p.user.bot_name, p.user.plan,
-            p.amount,
+            p.user.name, p.user.telegram_id, p.user.bot_name, p.user.plan, p.amount,
             "Paid" if p.paid else "Pending",
             p.paid_date.strftime("%Y-%m-%d") if p.paid_date else "",
             p.user.start_date.strftime("%Y-%m-%d") if p.user.start_date else "",
@@ -351,10 +414,47 @@ def export_csv():
         ])
     output.seek(0)
     filename = f"botpanel_{datetime(year, month, 1).strftime('%B_%Y')}.csv"
-    return Response(
-        output.getvalue(), mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
+    return Response(output.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition": f"attachment; filename={filename}"})
+
+
+# ─── Settings / Quick Links ───────────────────────────────────────────────────
+
+@app.route("/settings", methods=["GET", "POST"])
+@login_required
+def settings():
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action == "add_link":
+            title = request.form.get("title", "").strip()
+            url   = request.form.get("url", "").strip()
+            icon  = request.form.get("icon", "🔗").strip() or "🔗"
+            if title and url:
+                if not url.startswith("http"):
+                    url = "https://" + url
+                db.session.add(QuickLink(title=title, url=url, icon=icon))
+                db.session.commit()
+                flash(f'Button "{title}" added!', "success")
+        elif action == "delete_link":
+            link_id = int(request.form.get("link_id", 0))
+            link = QuickLink.query.get(link_id)
+            if link:
+                db.session.delete(link)
+                db.session.commit()
+                flash("Button deleted.", "success")
+        elif action == "change_password":
+            old_pw  = request.form.get("old_password", "")
+            new_pw  = request.form.get("new_password", "")
+            admin = Admin.query.get(session["admin_id"])
+            if admin and admin.check_password(old_pw) and len(new_pw) >= 6:
+                admin.set_password(new_pw)
+                db.session.commit()
+                flash("Password changed!", "success")
+            else:
+                flash("Wrong current password or new password too short (min 6).", "error")
+        return redirect(url_for("settings"))
+    links = QuickLink.query.order_by(QuickLink.created_at).all()
+    return render_template("settings.html", links=links)
 
 
 @app.route("/api/stats")
@@ -363,7 +463,8 @@ def api_stats():
     now     = datetime.now()
     monthly = []
     for m in range(1, 13):
-        pays = Payment.query.filter_by(month=m, year=now.year).all()
+        pays = (Payment.query.filter_by(month=m, year=now.year)
+                .join(BotUser).filter(BotUser.deleted_at == None).all())
         monthly.append(sum(p.amount for p in pays if p.paid))
     return jsonify({"monthly_revenue": monthly, "year": now.year})
 
