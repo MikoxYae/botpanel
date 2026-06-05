@@ -38,6 +38,11 @@
         <label>Monthly Amount (₹) *</label>
         <input type="number" name="amount" value="299" min="1" required />
       </div>
+      <div class="form-group">
+        <label>Service Start Date <span class="label-hint">(Purane users ke liye)</span></label>
+        <input type="date" name="start_date" value="{{ today }}" />
+        <span class="field-hint">Kab se bot host ho raha hai — old users ke liye purani date daalo</span>
+      </div>
       <div class="form-group form-group--full">
         <label>Notes</label>
         <textarea name="notes" rows="3" placeholder="Any special notes about this user..."></textarea>
