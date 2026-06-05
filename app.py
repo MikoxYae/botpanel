@@ -251,6 +251,13 @@ def add_user():
             flash("Telegram ID already exists!", "error")
             return redirect(url_for("add_user"))
 
+        # If a soft-deleted record exists with same telegram_id, purge it so the
+        # DB unique constraint doesn't block the new INSERT.
+        old = BotUser.query.filter(BotUser.telegram_id == telegram_id, BotUser.deleted_at != None).first()
+        if old:
+            db.session.delete(old)
+            db.session.flush()
+
         user = BotUser(name=name, telegram_id=telegram_id, bot_name=bot_name,
                        plan=plan, amount=amount, notes=notes, start_date=start_date)
         db.session.add(user)
