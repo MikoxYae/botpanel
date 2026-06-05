@@ -43,7 +43,8 @@
   </div>
 </div>
 
-<div class="card">
+<div class="card" style="overflow:visible">
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:14px">
   <table class="table">
     <thead>
       <tr>
@@ -54,7 +55,7 @@
         <th>Plan / Amount</th>
         <th>Start Date</th>
         <th>{{ months_list[sel_month-1][1] }} {{ sel_year }} Payment</th>
-        <th>Actions</th>
+        <th style="min-width:130px">Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -127,5 +128,6 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
 </div>
 {% endblock %}
