@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Monthly Report{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Monthly Report</h1>
+    <p class="page-sub">{{ current_year }} — Full year overview</p>
+  </div>
+  <a href="{{ url_for('export_csv') }}" class="btn btn-outline">↓ Export Current Month</a>
+</div>
+
+<div class="monthly-grid">
+  {% for m in months_data %}
+  <div class="month-card {% if m.total == 0 %}month-card--empty{% endif %}">
+    <div class="month-card-header">
+      <span class="month-name">{{ m.month }}</span>
+      <span class="month-year">{{ m.year }}</span>
+    </div>
+    {% if m.total > 0 %}
+    <div class="month-revenue">₹{{ "{:,}".format(m.revenue) }}</div>
+    <div class="month-bar">
+      <div class="month-bar-fill" style="width:{{ (m.paid / m.total * 100)|int if m.total else 0 }}%"></div>
+    </div>
+    <div class="month-stats">
+      <span class="badge badge--green">✓ {{ m.paid }}</span>
+      <span class="badge badge--yellow">⏳ {{ m.pending }}</span>
+    </div>
+    <div class="month-actions">
+      <a href="{{ url_for('payments', month=m.month_num, year=m.year) }}" class="btn btn-outline btn-sm">View</a>
+      <a href="{{ url_for('export_csv', month=m.month_num, year=m.year) }}" class="btn btn-ghost btn-sm">CSV</a>
+    </div>
+    {% else %}
+    <div class="month-empty">No data</div>
+    <a href="{{ url_for('payments', month=m.month_num, year=m.year) }}" class="btn btn-ghost btn-sm" style="margin-top:12px">Generate</a>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
