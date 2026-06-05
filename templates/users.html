@@ -78,15 +78,24 @@
           <div class="fw-bold accent">₹{{ user.amount }}/mo</div>
         </td>
         <td>
+          {% set _ref = user.start_date or user.joined_date %}
           {% if user.start_date %}
             <div class="user-name">{{ user.start_date.strftime('%d %b %Y') }}</div>
+            <div class="muted text-xs">{{ user.months_running }}m running</div>
+          {% elif user.joined_date %}
+            <div class="user-name">{{ user.joined_date.strftime('%d %b %Y') }}</div>
             <div class="muted text-xs">{{ user.months_running }}m running</div>
           {% else %}
             <span class="muted text-xs">—</span>
           {% endif %}
+          {% if user.joined_date and user.start_date %}
+            <div class="muted text-xs" style="opacity:0.6">Added {{ user.joined_date.strftime('%d %b %Y') }}</div>
+          {% endif %}
         </td>
         <td>
-          {% if user.current_payment %}
+          {% if user.before_start %}
+            <span class="badge badge--gray" title="User hadn't started yet this month">—</span>
+          {% elif user.current_payment %}
             {% if user.current_payment.paid %}
               <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                 <span class="badge badge--green">✓ Paid</span>
