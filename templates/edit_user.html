@@ -52,5 +52,19 @@
       <button type="submit" class="btn btn-primary">Save Changes</button>
     </div>
   </form>
+
+  {% if user.start_date %}
+  <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border)">
+    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">
+      ⚠️ Agar <strong>{{ user.name }}</strong> ke kuch months ke payment records missing hain
+      (start date: <strong>{{ user.start_date.strftime('%b %Y') }}</strong>), toh backfill karo:
+    </div>
+    <form method="POST" action="{{ url_for('backfill_user', user_id=user.id) }}">
+      <button type="submit" class="btn btn-outline">
+        ↩ Backfill Missing Records ({{ user.start_date.strftime('%b %Y') }} → now)
+      </button>
+    </form>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}
