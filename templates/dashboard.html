@@ -79,29 +79,72 @@
 
 <script>
 async function loadChart(year) {
-  const res = await fetch('/api/stats');
+  const res = await fetch('/api/stats?year=' + (year || new Date().getFullYear()));
   const data = await res.json();
   const labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const ctx = document.getElementById('revenueChart').getContext('2d');
   if (window._chart) window._chart.destroy();
+  const curMonth = new Date().getMonth();
   window._chart = new Chart(ctx, {
     type: 'bar',
     data: {
       labels,
-      datasets: [{
-        label: 'Revenue (₹)',
-        data: data.monthly_revenue,
-        backgroundColor: labels.map((_, i) => i === new Date().getMonth() ? '#38bdf8' : '#1a3a5c'),
-        borderRadius: 6,
-        borderSkipped: false,
-      }]
+      datasets: [
+        {
+          label: 'Collected (₹)',
+          data: data.monthly_revenue,
+          backgroundColor: labels.map((_, i) => i === curMonth ? '#34d399' : '#14532d'),
+          borderRadius: [6, 6, 0, 0],
+          borderSkipped: false,
+          stack: 'a',
+        },
+        {
+          label: 'Pending (₹)',
+          data: data.monthly_pending,
+          backgroundColor: labels.map((_, i) => i === curMonth ? '#fbbf24' : '#3a2a00'),
+          borderRadius: [6, 6, 0, 0],
+          borderSkipped: false,
+          stack: 'a',
+        }
+      ]
     },
     options: {
       responsive: true,
-      plugins: { legend: { display: false } },
+      plugins: {
+        legend: { display: true, labels: { color: '#4a6080', boxWidth: 12, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.dataset.label + ': ₹' + ctx.parsed.y.toLocaleString()
+          }
+        },
+        datalabels: false
+      },
       scales: {
-        x: { grid: { color: '#0f1d2e' }, ticks: { color: '#4a6080' } },
-        y: { grid: { color: '#0f1d2e' }, ticks: { color: '#4a6080', callback: v => '₹' + v.toLocaleString() } }
+        x: { stacked: true, grid: { color: '#0f1d2e' }, ticks: { color: '#4a6080' } },
+        y: {
+          stacked: true,
+          grid: { color: '#0f1d2e' },
+          ticks: { color: '#4a6080', callback: v => '₹' + v.toLocaleString() },
+          beginAtZero: true
+        }
+      }
+    }
+  });
+
+  // Draw value labels on top of each stacked bar
+  window._chart.data.labels.forEach((lbl, i) => {
+    const total = (data.monthly_revenue[i] || 0) + (data.monthly_pending[i] || 0);
+    if (total > 0) {
+      const meta = window._chart.getDatasetMeta(1);
+      if (meta.data[i]) {
+        const bar = meta.data[i];
+        const ctx2 = window._chart.ctx;
+        ctx2.save();
+        ctx2.fillStyle = '#e2e8f0';
+        ctx2.font = 'bold 10px Inter, sans-serif';
+        ctx2.textAlign = 'center';
+        ctx2.fillText('₹' + total.toLocaleString(), bar.x, bar.y - 4);
+        ctx2.restore();
       }
     }
   });
