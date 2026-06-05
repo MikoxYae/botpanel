@@ -113,7 +113,11 @@
             <a href="{{ url_for('edit_user', user_id=user.id) }}" class="btn-mini">Edit</a>
             <form method="POST" action="{{ url_for('delete_user', user_id=user.id) }}"
                   onsubmit="return confirm('Move {{ user.name }} to Trash?')">
-              <button type="submit" class="btn-mini btn-mini--red">🗑</button>
+              <button type="submit" class="btn-mini btn-mini--red" title="Move to Trash">🗑</button>
+            </form>
+            <form method="POST" action="{{ url_for('purge_user', user_id=user.id) }}"
+                  onsubmit="return confirm('PERMANENTLY delete {{ user.name }}? This CANNOT be undone!')">
+              <button type="submit" class="btn-mini btn-mini--red" title="Delete Forever" style="background:#3d0a0a;border-color:#7f1d1d">✕</button>
             </form>
           </div>
         </td>
