@@ -171,9 +171,10 @@ def dashboard():
     total_users = BotUser.query.filter_by(deleted_at=None).count()
     payments_this_month = (Payment.query.filter_by(month=month, year=year)
                            .join(BotUser).filter(BotUser.deleted_at == None).all())
-    paid_count    = sum(1 for p in payments_this_month if p.paid)
-    pending_count = sum(1 for p in payments_this_month if not p.paid)
-    revenue       = sum(p.amount for p in payments_this_month if p.paid)
+    paid_count      = sum(1 for p in payments_this_month if p.paid)
+    pending_count   = sum(1 for p in payments_this_month if not p.paid)
+    revenue         = sum(p.amount for p in payments_this_month if p.paid)
+    pending_revenue = sum(p.amount for p in payments_this_month if not p.paid)
     recent_payments = (
         Payment.query.filter_by(month=month, year=year)
         .join(BotUser).filter(BotUser.deleted_at == None)
@@ -183,6 +184,7 @@ def dashboard():
         "dashboard.html",
         total_users=total_users, paid_count=paid_count,
         pending_count=pending_count, revenue=revenue,
+        pending_revenue=pending_revenue,
         recent_payments=recent_payments,
         current_month=now.strftime("%B %Y"),
     )
