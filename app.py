@@ -209,12 +209,16 @@ def users():
                  .filter(BotUser.deleted_at == None).distinct().all()]
     today = date.today()
 
+    sel_date = date(sel_year, sel_month, 1)
     auto_created = 0
     for u in all_users:
-        if not Payment.query.filter_by(user_id=u.id, month=sel_month, year=sel_year).first():
-            db.session.add(Payment(user_id=u.id, month=sel_month, year=sel_year,
-                                   amount=u.amount, paid=False))
-            auto_created += 1
+        user_start = u.start_date or u.joined_date
+        # Only create payment records for months on/after the user's start date
+        if user_start and sel_date >= date(user_start.year, user_start.month, 1):
+            if not Payment.query.filter_by(user_id=u.id, month=sel_month, year=sel_year).first():
+                db.session.add(Payment(user_id=u.id, month=sel_month, year=sel_year,
+                                       amount=u.amount, paid=False))
+                auto_created += 1
     if auto_created:
         db.session.commit()
 
@@ -223,6 +227,7 @@ def users():
             user_id=u.id, month=sel_month, year=sel_year).first()
         _ref = u.start_date or u.joined_date
         u.months_running = (today - _ref).days // 30 if _ref else 0
+        u.before_start = bool(_ref and sel_date < date(_ref.year, _ref.month, 1))
 
     months_list = [(m, datetime(sel_year, m, 1).strftime("%B")) for m in range(1, 13)]
     return render_template(
