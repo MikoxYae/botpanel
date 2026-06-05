@@ -34,10 +34,9 @@
         <th>User</th>
         <th>Telegram ID</th>
         <th>Bot</th>
-        <th>Plan</th>
-        <th>Amount</th>
+        <th>Plan / Amount</th>
+        <th>Start Date</th>
         <th>This Month</th>
-        <th>Joined</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -56,23 +55,34 @@
         </td>
         <td><code class="tg-id">{{ user.telegram_id }}</code></td>
         <td class="accent">{{ user.bot_name }}</td>
-        <td>{{ user.plan }}</td>
-        <td class="fw-bold">₹{{ user.amount }}</td>
+        <td>
+          <div class="user-name">{{ user.plan }}</div>
+          <div class="fw-bold accent">₹{{ user.amount }}/mo</div>
+        </td>
+        <td>
+          {% if user.start_date %}
+            <div class="user-name">{{ user.start_date.strftime('%d %b %Y') }}</div>
+            <div class="muted text-xs">{{ user.months_running }}m running</div>
+          {% else %}
+            <span class="muted text-xs">—</span>
+          {% endif %}
+        </td>
         <td>
           {% if user.current_payment %}
             {% if user.current_payment.paid %}
-              <span class="badge badge--green">Paid</span>
+              <span class="badge badge--green">✓ Paid</span>
             {% else %}
-              <span class="badge badge--yellow">Pending</span>
-              <form method="POST" action="{{ url_for('mark_paid', payment_id=user.current_payment.id) }}" style="display:inline;margin-left:4px">
-                <button type="submit" class="btn-mini btn-mini--green">✓</button>
-              </form>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span class="badge badge--yellow">Pending</span>
+                <form method="POST" action="{{ url_for('mark_paid', payment_id=user.current_payment.id) }}">
+                  <button type="submit" class="btn-mini btn-mini--green">✓</button>
+                </form>
+              </div>
             {% endif %}
           {% else %}
             <span class="badge badge--gray">No record</span>
           {% endif %}
         </td>
-        <td class="muted">{{ user.joined_date.strftime('%d %b %Y') }}</td>
         <td>
           <div class="action-btns">
             <a href="{{ url_for('edit_user', user_id=user.id) }}" class="btn-mini">Edit</a>
@@ -83,7 +93,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="9" class="empty-state">No users found.</td></tr>
+      <tr><td colspan="8" class="empty-state">No users found.</td></tr>
       {% endfor %}
     </tbody>
   </table>
